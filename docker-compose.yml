@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: ppr_java_backend
+    ports:
+      - "7070:7070" # Maps Javalin web server port to host
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      # Mount the resources directory so you can add .xml and .mp4 files
+      # from your host machine without needing to rebuild the Docker image
+      - ./src/main/resources:/app/src/main/resources
+    environment:
+      # We override the DUUI and app settings if your AppFactory supports ENV variables.
+      # Otherwise, see Step 3 below to modify ppr.properties.
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+
+  mongodb:
+    image: mongo:6.0
+    container_name: ppr_mongodb
+    ports:
+      - "27020:27017" # Maps host port 27020 to container port 27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: ppr_db
+    volumes:
+      - mongo_data:/data/db # Persists database data across container restarts
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongo_data:
