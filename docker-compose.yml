@@ -5,36 +5,78 @@ services:
     build: .
     container_name: ppr_java_backend
     ports:
-      - "7070:7070" # Maps Javalin web server port to host
+      - "7070:7070"
     depends_on:
       mongodb:
         condition: service_healthy
     volumes:
-      # Mount the resources directory so you can add .xml and .mp4 files
-      # from your host machine without needing to rebuild the Docker image
       - ./src/main/resources:/app/src/main/resources
     environment:
-      # We override the DUUI and app settings if your AppFactory supports ENV variables.
-      # Otherwise, see Step 3 below to modify ppr.properties.
       - MONGODB_HOST=mongodb
       - MONGODB_PORT=27017
+      - LOGSTASH_HOST=logstash # Instructs Log4j to send logs here
 
   mongodb:
     image: mongo:6.0
     container_name: ppr_mongodb
     ports:
-      - "27020:27017" # Maps host port 27020 to container port 27017
+      - "27020:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: password123
       MONGO_INITDB_DATABASE: ppr_db
     volumes:
-      - mongo_data:/data/db # Persists database data across container restarts
+      - mongo_data:/data/db
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # --- PROMETHEUS & GRAFANA ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ppr_prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ppr_grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  # --- ELK STACK ---
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.1
+    container_name: ppr_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.12.1
+    container_name: ppr_logstash
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - "5000:5000"
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.1
+    container_name: ppr_kibana
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
 
 volumes:
   mongo_data:

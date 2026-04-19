@@ -5,9 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.staticfiles.Location;
+import io.javalin.micrometer.MicrometerPlugin;
 import io.javalin.openapi.plugin.OpenApiPlugin;
 import io.javalin.openapi.plugin.swagger.SwaggerPlugin;
 import io.javalin.rendering.template.JavalinFreemarker;
+import io.micrometer.prometheus.PrometheusConfig;
+import io.micrometer.prometheus.PrometheusMeterRegistry;
 import org.texttechnologylab.ppr.config.PPRConfiguration;
 import org.texttechnologylab.ppr.db.DatabaseConnection;
 import org.texttechnologylab.ppr.model.RedeImpl;
@@ -35,6 +38,9 @@ public class RESTHandler {
     private final ObjectMapper mapper = new ObjectMapper();
     private final List<String> availableVideos;
 
+    // Metrics Registry for Prometheus
+    private static final PrometheusMeterRegistry prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+
     public RESTHandler(DatabaseConnection db, PPRConfiguration config, List<String> availableVideos) {
         this.db = db;
         this.availableVideos = availableVideos != null ? availableVideos : new ArrayList<>();
@@ -42,6 +48,11 @@ public class RESTHandler {
         this.app = Javalin.create(javalinConfig -> {
             javalinConfig.staticFiles.add("/public", Location.CLASSPATH);
             javalinConfig.fileRenderer(new JavalinFreemarker());
+
+            // Register Micrometer Plugin for Prometheus HTTP request tracking
+            javalinConfig.registerPlugin(new MicrometerPlugin(micrometerConfig -> {
+                micrometerConfig.registry = prometheusRegistry;
+            }));
 
             javalinConfig.registerPlugin(new OpenApiPlugin(pluginConfig -> {
                 pluginConfig.withDocumentationPath("/openapi");
@@ -69,6 +80,12 @@ public class RESTHandler {
         app.get("/api/redner/{id}/reden", this::apiGetRednerReden);
         app.get("/api/stats", this::apiGetStats);
         app.get("/api/video/{id}", this::streamVideo);
+
+        // Expose metrics for Prometheus
+        app.get("/api/metrics", ctx -> {
+            ctx.contentType("text/plain");
+            ctx.result(prometheusRegistry.scrape());
+        });
 
         app.get("/", this::viewIndex);
         app.get("/abgeordnete", this::viewAbgeordnetenListe);
@@ -114,7 +131,6 @@ public class RESTHandler {
     }
 
     // view handlers
-
     private void viewIndex(Context ctx) {
         Map<String, Object> model = new HashMap<>();
         model.put("titel", "Startseite");
@@ -282,7 +298,6 @@ public class RESTHandler {
     }
 
     //  helper methods
-
     private RedeImpl hydrateRede(Map<String, Object> data) {
         String id = (String) data.getOrDefault("id", "unknown");
         RedeImpl rede = new RedeImpl(id);
