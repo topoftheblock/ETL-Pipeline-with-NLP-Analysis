@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dbtplenarprotokoll wahlperiode="20" sitzung-nr="1">
+    <rednerliste>
+        <redner id="11000001">
+            <name>
+                <vorname>Max</vorname>
+                <nachname>Mustermann</nachname>
+            </name>
+        </redner>
+    </rednerliste>
+    <sitzungsverlauf>
+        <rede id="ID20100100">
+            <p>Das ist ein Testabsatz.</p>
+            <kommentar>(Beifall)</kommentar>
+        </rede>
+    </sitzungsverlauf>
+</dbtplenarprotokoll>
